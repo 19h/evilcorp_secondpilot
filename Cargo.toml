@@ -1,0 +1,15 @@
+[package]
+name = "evilcorp_secondpilot"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+readme = "README.md"
+description = "A wrapper to the EvilCorp SecondPilot API"
+repository = "https://github.com/19h/evilcorp_secondpilot"
+
+[dependencies]
+futures-util = "0.3.28"
+reqwest = { version = "0.11.18", features = ["json", "stream"] }
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+tokio = { version = "1.28.1", features = ["macros", "rt-multi-thread"] }
