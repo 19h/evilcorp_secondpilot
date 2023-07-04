@@ -7,6 +7,10 @@ readme = "README.md"
 description = "A wrapper to the EvilCorp SecondPilot API"
 repository = "https://github.com/19h/evilcorp_secondpilot"
 
+[[bin]]
+name = "copilot_token"
+path = "src/bin/copilot_token.rs"
+
 [dependencies]
 chrono = "0.4.26"
 futures-util = "0.3.28"

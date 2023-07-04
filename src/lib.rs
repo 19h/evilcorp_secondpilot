@@ -132,23 +132,29 @@ impl EvilcorpSecondPilotClient {
         Self { token, token_expires_at: 0 }
     }
 
-    pub async fn get_or_refresh_token(&mut self) -> Result<String, Box<dyn std::error::Error>> {
-        if self.token_expires_at < Utc::now().timestamp() {
-            let client = Client::new();
+    pub async fn get_token(
+        &self
+    ) -> Result<TokenResponse, Box<dyn std::error::Error>> {
+        let client = Client::new();
 
-            let response = client
-                .get("https://copilot-proxy.githubusercontent.com/v1/user")
-                .header(USER_AGENT, "GitHub-Copilot")
+        Ok(
+            client
+                .get("https://api.github.com/copilot_internal/v2/token")
+                .header(USER_AGENT, "GithubCopilot/3.99.99")
                 .header(AUTHORIZATION, format!("Bearer {}", self.token))
                 .send()
                 .await?
                 .json::<TokenResponse>()
-                .await?;
+                .await?
+        )
+    }
+
+    pub async fn get_or_refresh_token(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+        if self.token_expires_at < Utc::now().timestamp() {
+            let response = self.get_token().await?;
 
             self.token = response.token;
             self.token_expires_at = response.expires_at;
-
-            println!("Token refreshed");
         }
 
         Ok(
@@ -189,8 +195,14 @@ impl EvilcorpSecondPilotClient {
 
         let response = client
             .post("https://copilot-proxy.githubusercontent.com/v1/chat/completions")
-            .header(USER_AGENT, "GithubCopilot/1.86.92")
-            .header(AUTHORIZATION, format!("Bearer {}", token))
+            .header(
+                USER_AGENT,
+                "GithubCopilot/1.86.92",
+            )
+            .header(
+                AUTHORIZATION,
+                format!("Bearer {}", token),
+            )
             .json(&req)
             .send()
             .await?;

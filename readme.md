@@ -14,18 +14,25 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-evilcorp_secondpilot = \"0.1.0\"
+evilcorp_secondpilot = "^2.0.0"
 ```
 
 Then, import the library and use the `EvilcorpSecondPilotClient` struct as follows:
 
 ```rust
-use evilcorp_secondpilot::{EvilcorpSecondPilotClient, Message, CompletionRequestBuilder};
+use evilcorp_secondpilot::{
+    CompletionRequestBuilder,
+    EvilcorpSecondPilotClient,
+    Message,
+};
 
-let client = EvilcorpSecondPilotClient::new("<your token>");
+let client =
+    EvilcorpSecondPilotClient::new(
+        "<your token>",
+    );
 
 let message = Message {
-        content: "your message".to_string(),
+    content: "your message".to_string(),
     role: "user".to_string(),
 };
 
@@ -34,9 +41,10 @@ let request = CompletionRequestBuilder::new()
     .with_temperature(<temperature>)
     .with_top_p(<top_p>)
     .add_message(message)
-    .build().await;
+    .build()
+    .await;
 
-let response = client.query(&request, "<token>").await?;
+let response = client.query(&request).await?;
 
 println!("Response: {}", response);
 ```
