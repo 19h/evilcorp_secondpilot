@@ -34,7 +34,7 @@ pub struct CompletionRequest {
 impl Default for CompletionRequest {
     fn default() -> Self {
         Self {
-            stream: false,
+            stream: true,
             intent: false,
             messages: vec![],
             model: "idk".to_string(),
@@ -60,11 +60,6 @@ impl CompletionRequestBuilder {
         Self {
             request: CompletionRequest::default(),
         }
-    }
-
-    pub fn with_stream(mut self, stream: bool) -> Self {
-        self.request.stream = stream;
-        self
     }
 
     pub fn with_intent(mut self, intent: bool) -> Self {
