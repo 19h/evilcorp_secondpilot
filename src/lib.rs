@@ -1,13 +1,23 @@
+use chrono::Utc;
 use futures_util::StreamExt;
 use reqwest::{
-    header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT},
     Client,
+    header::{AUTHORIZATION, HeaderMap, HeaderValue, USER_AGENT},
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct TokenResponse {
+    pub chat_enabled: bool,
+    pub code_quote_enabled: bool,
+    pub copilotignore_enabled: bool,
+    pub expires_at: i64,
+    pub public_suggestions: String,
+    pub refresh_in: i64,
+    pub sku: String,
+    pub telemetry: String,
     pub token: String,
+    pub tracking_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,15 +124,41 @@ pub struct Delta {
 
 pub struct EvilcorpSecondPilotClient {
     pub token: String,
+    pub token_expires_at: i64,
 }
 
 impl EvilcorpSecondPilotClient {
     pub fn new(token: String) -> Self {
-        Self { token }
+        Self { token, token_expires_at: 0 }
+    }
+
+    pub async fn get_or_refresh_token(&mut self) -> Result<String, Box<dyn std::error::Error>> {
+        if self.token_expires_at < Utc::now().timestamp() {
+            let client = Client::new();
+
+            let response = client
+                .get("https://copilot-proxy.githubusercontent.com/v1/user")
+                .header(USER_AGENT, "GitHub-Copilot")
+                .header(AUTHORIZATION, format!("Bearer {}", self.token))
+                .send()
+                .await?
+                .json::<TokenResponse>()
+                .await?;
+
+            self.token = response.token;
+            self.token_expires_at = response.expires_at;
+
+            println!("Token refreshed");
+        }
+
+        Ok(
+            self.token
+                .clone(),
+        )
     }
 
     pub async fn query_simple(
-        &self,
+        &mut self,
         message: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let message = Message {
@@ -136,20 +172,20 @@ impl EvilcorpSecondPilotClient {
             ..Default::default()
         };
 
-        let token = self.get_token().await?;
-
         self.query(
             &request,
-            &token,
         ).await
     }
 
     pub async fn query(
-        &self,
+        &mut self,
         req: &CompletionRequest,
-        token: &str,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let client = Client::new();
+
+        let token =
+            self.get_or_refresh_token()
+                .await?;
 
         let response = client
             .post("https://copilot-proxy.githubusercontent.com/v1/chat/completions")
@@ -171,7 +207,9 @@ impl EvilcorpSecondPilotClient {
                 if !line.starts_with("data: ") {
                     continue;
                 }
+
                 let line = &line[6..];
+
                 if let Some(delta) = serde_json::from_str::<CompletionResponse>(line)
                     .ok()
                     .and_then(|r| r.choices.into_iter().next())
@@ -183,26 +221,5 @@ impl EvilcorpSecondPilotClient {
         }
 
         Ok(final_string)
-    }
-
-    async fn get_token(&self) -> Result<String, Box<dyn std::error::Error>> {
-        let client = Client::new();
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&format!("token {}", self.token))?,
-        );
-        headers.insert(
-            USER_AGENT,
-            HeaderValue::from_static("GithubCopilot/1.86.92"),
-        );
-        let response = client
-            .get("https://api.github.com/copilot_internal/v2/token")
-            .headers(headers)
-            .send()
-            .await?
-            .json::<TokenResponse>()
-            .await?;
-        Ok(response.token)
     }
 }

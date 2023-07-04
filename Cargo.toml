@@ -8,6 +8,7 @@ description = "A wrapper to the EvilCorp SecondPilot API"
 repository = "https://github.com/19h/evilcorp_secondpilot"
 
 [dependencies]
+chrono = "0.4.26"
 futures-util = "0.3.28"
 reqwest = { version = "0.11.18", features = ["json", "stream"] }
 serde = { version = "1.0.163", features = ["derive"] }
