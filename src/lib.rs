@@ -117,14 +117,18 @@ pub struct Delta {
     pub content: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct EvilcorpSecondPilotClient {
-    pub token: String,
+    pub token: Box<String>,
     pub token_expires_at: i64,
 }
 
 impl EvilcorpSecondPilotClient {
     pub fn new(token: String) -> Self {
-        Self { token, token_expires_at: 0 }
+        Self {
+            token: Box::new(token),
+            token_expires_at: 0
+        }
     }
 
     pub async fn get_token(
@@ -136,7 +140,7 @@ impl EvilcorpSecondPilotClient {
             client
                 .get("https://api.github.com/copilot_internal/v2/token")
                 .header(USER_AGENT, "GithubCopilot/3.99.99")
-                .header(AUTHORIZATION, format!("Bearer {}", self.token))
+                .header(AUTHORIZATION, format!("Bearer {}", &self.token))
                 .send()
                 .await?
                 .json::<TokenResponse>()
@@ -148,12 +152,13 @@ impl EvilcorpSecondPilotClient {
         if self.token_expires_at < Utc::now().timestamp() {
             let response = self.get_token().await?;
 
-            self.token = response.token;
+            self.token = Box::new(response.token);
             self.token_expires_at = response.expires_at;
         }
 
         Ok(
             self.token
+                .to_string()
                 .clone(),
         )
     }
@@ -204,27 +209,34 @@ impl EvilcorpSecondPilotClient {
 
         let mut stream = response.bytes_stream();
 
-        let mut final_string = String::new();
+        let mut dataset = vec![];
 
         while let Some(chunk) = stream.next().await {
             let chunk = chunk?.to_vec();
-            let chunk_str = std::str::from_utf8(&chunk)?;
+            dataset.append(&mut chunk.clone());
+        }
 
-            for line in chunk_str.lines() {
-                if !line.starts_with("data: ") {
-                    continue;
+        let mut final_string = String::new();
+
+        match String::from_utf8(dataset) {
+            Ok(str) => {
+                for line in str.lines() {
+                    if !line.starts_with("data: ") {
+                        continue;
+                    }
+
+                    let line = &line[6..];
+
+                    if let Some(delta) = serde_json::from_str::<CompletionResponse>(line)
+                        .ok()
+                        .and_then(|r| r.choices.into_iter().next())
+                        .map(|c| c.delta)
+                    {
+                        final_string.push_str(&delta.content);
+                    }
                 }
-
-                let line = &line[6..];
-
-                if let Some(delta) = serde_json::from_str::<CompletionResponse>(line)
-                    .ok()
-                    .and_then(|r| r.choices.into_iter().next())
-                    .map(|c| c.delta)
-                {
-                    final_string.push_str(&delta.content);
-                }
-            }
+            },
+            Err(_) => {}
         }
 
         Ok(final_string)
